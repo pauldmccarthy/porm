@@ -1,0 +1,3 @@
+porm - simple sqlite3 <-> python ORM layer.
+
+porm.py is well documented; look in there for usage.
