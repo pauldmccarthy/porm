@@ -71,7 +71,7 @@ instance - the instance to save
   """
   pass
 
-def orm(db, table, cursor):
+def orm(db, table, cursor, fkeylookup=True):
   """
 Retrieves the rows from the given sqlite3 cursor and attempts to convert 
 them into representative python objects. Any field which is a foreign key
@@ -89,9 +89,10 @@ The subsequent field in the returned python objects will be set to the
 
 A table containing a reference to itself will cause infinite recursion.
 
-db     - handle to an open sqlite3 Connection object
-table  - name of the table in question
-cursor - handle to a valid sqlite3 Cursor object
+db         - handle to an open sqlite3 Connection object
+table      - name of the table in question
+cursor     - handle to a valid sqlite3 Cursor object
+fkeylookup - optional, defaults to True; if false, foreign key lookups are              not executed
   """
   
   objs     = []
@@ -107,7 +108,7 @@ cursor - handle to a valid sqlite3 Cursor object
       val  = row[i]
       
       # foreign key lookup
-      if len(name) > 3 and name[-3:] == '_id':
+      if fkeylookup and len(name) > 3 and name[-3:] == '_id':
 
         val  = query(db, name[:-3], 'id = %i' % val)
 
