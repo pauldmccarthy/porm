@@ -73,7 +73,7 @@ instance - the instance to save
   """
 
   # no id - assume this is a new instance
-  if instance.id == 0: exists = False
+  if instance.id <= 0: exists = False
 
   # id has been given - check to see if it is valid
   else:
