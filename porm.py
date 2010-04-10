@@ -34,7 +34,19 @@ Base ORM object; all returned objects are of this type, and all objects
 passed to the save function are assumed to be of this type. If not, 
 unexpected things may result.
   """
-  pass
+
+  def __init__(self, obj=None):
+    """
+If an object is passed in, the fields from that object are copied into this
+object.
+    """
+
+    self.id = 0
+
+    if obj is not None:
+      for f in dir(obj):
+        if f.startswith('__'): continue
+        setattr(self, f, getattr(obj, f))
 
 def query(db, table, where='', fkeylookup=True):
   """
