@@ -82,8 +82,13 @@ instance - the instance to save
     exists = db.execute(query).fetchall()
     exists = len(exists) is not 0
 
-  fields = [f for f in dir(instance) if f[0:2] != '__']
+  fields = [f for f in dir(instance) if f[0:2] != '__' and f != 'id']
   values = [getattr(instance, f) for f in fields]
+
+  # wrapping all values with single quotes may not 
+  # work with a non sqlite3 database; i'm not sure
+  values = map(str, values)
+  values = ['\'%s\'' % v for v in values]
 
   # replace any foreign key objects with their ids
   for i in range(len(values)):
@@ -93,9 +98,7 @@ instance - the instance to save
   # update existing instance
   if exists:
 
-    # wrapping all values with single quotes may not 
-    # work with a non sqlite3 database; i'm not sure
-    exprs = ','.join(['%s=\'%s\'' % e for e in zip(fields, values)])
+    exprs = ','.join(['%s=%s' % e for e in zip(fields, values)])
     stmt  = 'update %s set %s where id=%i' % (table, exprs, instance.id)
     db.execute(stmt)
 
