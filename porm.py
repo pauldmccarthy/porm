@@ -21,6 +21,16 @@
 #   - Circular foreign key relationships do not exist.
 #   - No table contains foreign key references to itself.
 #
+# Typical initialisation would be as follows:
+#
+#   # create db and ORM layer
+#   db = sqlite3.Connection('my.db')
+#   orm = Porm.porm(db)
+#
+#   # add your db table <-> python object mappings
+#   orm.addMapping('Person',  mymodel.Person)
+#   orm.addMapping('Address', mymodel.Address)
+#
 # Note: this module has no dependency upon sqlite3; it merely requires
 #       objects which look and behave like the sqlite3.Connection and 
 #       sqlite3.Cursor objects.
@@ -36,19 +46,32 @@ Base ORM object; used if the user does not provide a desired class type.
 
 class Porm:
   """
-
+ORM management object; create one of these to do stuff.
   """
-  def query(self, db, table, where='', clazz=Pormo, fkeylookup=True):
-    """
-Queries the given table in the given database according to the given where 
-clause. Returns a list of objects representing the rows returned from the 
-query.
 
-db         - a handle to an open sqlite3 Connection object
+  def __init__(self, db):
+    """
+Saves a handle to the given sqlite3 Connection object.
+
+db - handle to a sqlite3 Connection object
+    """
+    self.db     = db
+    self.ormmap = {}
+
+  def addMapping(self, table, clazz):
+    """
+Adds a mapping between the given table and class. Subsequent queries on 
+the given table will return instances of the given class.
+    """
+    self.ormmap[table] = clazz
+
+  def query(self, table, where='', fkeylookup=True):
+    """
+Queries the given table according to the given where clause. Returns a 
+list of objects representing the rows returned from the query.
+
 table      - the name of the table to query
 where      - the optional sql where clause
-clazz      - class of object to return - if not provided, defaults to 
-             porm.Pormo
 fkeylookup - optional, defaults to True; if false, foreign key lookups are
              not executed
 
@@ -63,48 +86,52 @@ you would do this:
 
     query = 'select * from %s %s' % (table, where)
 
-    cursor = db.execute(query)
-    return self.orm(db, table, cursor, clazz, fkeylookup)
+    cursor = self.db.execute(query)
+    return self.orm(table, cursor, fkeylookup)
 
-  def save(self, db, table, instance):
+  def save(self, table, instance):
     """
 Saves the given instance to the given table. If the instance already exists
 it is updated; otherwise it is inserted.
 
-db       - handle to an open sqlite3 Connection object
 table    - name of the table to save the instance to
 instance - the instance to save
     """
 
     # no id - assume this is a new instance
-    if instance.id <= 0: exists = False
+    exists = True
+    try: 
+      getattr(instance, 'id')
+      if instance.id <= 0: exists = False
+
+    except: exists = False
 
     # id has been given - check to see if it is valid
-    else:
+    if exists:
 
       query  = 'select * from %s where id = %i' % (table, instance.id)
-      exists = db.execute(query).fetchall()
+      exists = self.db.execute(query).fetchall()
       exists = len(exists) is not 0
 
     fields = [f for f in dir(instance) if f[0:2] != '__' and f != 'id']
     values = [getattr(instance, f) for f in fields]
-
-    # wrapping all values with single quotes may not 
-    # work with a non sqlite3 database; i'm not sure
-    values = map(str, values)
-    values = ['\'%s\'' % v for v in values]
 
     # replace any foreign key objects with their ids
     for i in range(len(values)):
       if fields[i].endswith('_id') and type(values[i]) != type(1):
         values[i] = values[i].id
 
+    # wrapping all values with single quotes may not 
+    # work with a non sqlite3 database; i'm not sure
+    values = map(str, values)
+    values = ['\'%s\'' % v for v in values]
+
     # update existing instance
     if exists:
 
       exprs = ','.join(['%s=%s' % e for e in zip(fields, values)])
       stmt  = 'update %s set %s where id=%i' % (table, exprs, instance.id)
-      db.execute(stmt)
+      self.db.execute(stmt)
 
     # insert new instance
     else:
@@ -113,11 +140,11 @@ instance - the instance to save
       values = '%s' % ','.join(values)
 
       stmt = 'insert into %s (%s) values (%s)' % (table, fields, values)
-      db.execute(stmt)
+      self.db.execute(stmt)
 
-    db.commit()
+    self.db.commit()
 
-  def orm(self, db, table, cursor, clazz=Pormo, fkeylookup=True):
+  def orm(self, table, cursor, fkeylookup=True):
     """
 Retrieves the rows from the given sqlite3 cursor and attempts to convert 
 them into representative python objects. Any field which is a foreign key
@@ -136,11 +163,8 @@ The subsequent field in the returned python objects will be set to the
 A table containing a reference to itself, or two (or more tables) with a 
 circular foreign key relationship will cause infinite recursion.
 
-db         - handle to an open sqlite3 Connection object
 table      - name of the table in question
 cursor     - handle to a valid sqlite3 Cursor object
-clazz      - class of object to return - if not provided, defaults to 
-             porm.Pormo
 fkeylookup - optional, defaults to True; if false, foreign key lookups are 
              not executed
     """
@@ -150,8 +174,12 @@ fkeylookup - optional, defaults to True; if false, foreign key lookups are
     rownames = [d[0] for d in cursor.description]
 
     for row in rows:
+  
+      try:    clazz = self.ormmap[table]
+      except: clazz = Pormo 
 
       obj = clazz()
+  
       for i in range(len(rownames)):
 
         name = rownames[i]
@@ -160,7 +188,7 @@ fkeylookup - optional, defaults to True; if false, foreign key lookups are
         # foreign key lookup
         if fkeylookup and len(name) > 3 and name[-3:] == '_id':
 
-          val = self.query(db, name[:-3], 'id = %i' % val)
+          val = self.query(name[:-3], 'id = %i' % val)
 
           if len(val) >= 1: setattr(obj, name, val[0])
           else:             setattr(obj, name, None)
