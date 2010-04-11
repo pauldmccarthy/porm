@@ -34,8 +34,12 @@ Base ORM object; used if the user does not provide a desired class type.
   """
   pass
 
-def query(db, table, where='', clazz=Pormo, fkeylookup=True):
+class Porm:
   """
+
+  """
+  def query(self, db, table, where='', clazz=Pormo, fkeylookup=True):
+    """
 Queries the given table in the given database according to the given where 
 clause. Returns a list of objects representing the rows returned from the 
 query.
@@ -53,68 +57,68 @@ As an example, to execute the given query:
 
 you would do this:
   oldies = porm.query(db, 'people', 'age > 27')
-  """
+    """
 
-  if len(where) is not 0: where = 'where %s' % where
+    if len(where) is not 0: where = 'where %s' % where
 
-  query = 'select * from %s %s' % (table, where)
+    query = 'select * from %s %s' % (table, where)
 
-  cursor = db.execute(query)
-  return orm(db, table, cursor, clazz, fkeylookup)
+    cursor = db.execute(query)
+    return self.orm(db, table, cursor, clazz, fkeylookup)
 
-def save(db, table, instance):
-  """
+  def save(self, db, table, instance):
+    """
 Saves the given instance to the given table. If the instance already exists
 it is updated; otherwise it is inserted.
 
 db       - handle to an open sqlite3 Connection object
 table    - name of the table to save the instance to
 instance - the instance to save
-  """
+    """
 
-  # no id - assume this is a new instance
-  if instance.id <= 0: exists = False
+    # no id - assume this is a new instance
+    if instance.id <= 0: exists = False
 
-  # id has been given - check to see if it is valid
-  else:
+    # id has been given - check to see if it is valid
+    else:
 
-    query  = 'select * from %s where id = %i' % (table, instance.id)
-    exists = db.execute(query).fetchall()
-    exists = len(exists) is not 0
+      query  = 'select * from %s where id = %i' % (table, instance.id)
+      exists = db.execute(query).fetchall()
+      exists = len(exists) is not 0
 
-  fields = [f for f in dir(instance) if f[0:2] != '__' and f != 'id']
-  values = [getattr(instance, f) for f in fields]
+    fields = [f for f in dir(instance) if f[0:2] != '__' and f != 'id']
+    values = [getattr(instance, f) for f in fields]
 
-  # wrapping all values with single quotes may not 
-  # work with a non sqlite3 database; i'm not sure
-  values = map(str, values)
-  values = ['\'%s\'' % v for v in values]
+    # wrapping all values with single quotes may not 
+    # work with a non sqlite3 database; i'm not sure
+    values = map(str, values)
+    values = ['\'%s\'' % v for v in values]
 
-  # replace any foreign key objects with their ids
-  for i in range(len(values)):
-    if fields[i].endswith('_id') and type(values[i]) != type(1):
-      values[i] = values[i].id
+    # replace any foreign key objects with their ids
+    for i in range(len(values)):
+      if fields[i].endswith('_id') and type(values[i]) != type(1):
+        values[i] = values[i].id
 
-  # update existing instance
-  if exists:
+    # update existing instance
+    if exists:
 
-    exprs = ','.join(['%s=%s' % e for e in zip(fields, values)])
-    stmt  = 'update %s set %s where id=%i' % (table, exprs, instance.id)
-    db.execute(stmt)
+      exprs = ','.join(['%s=%s' % e for e in zip(fields, values)])
+      stmt  = 'update %s set %s where id=%i' % (table, exprs, instance.id)
+      db.execute(stmt)
 
-  # insert new instance
-  else:
+    # insert new instance
+    else:
 
-    fields = '%s' % ','.join(fields)
-    values = '%s' % ','.join(values)
+      fields = '%s' % ','.join(fields)
+      values = '%s' % ','.join(values)
 
-    stmt = 'insert into %s (%s) values (%s)' % (table, fields, values)
-    db.execute(stmt)
+      stmt = 'insert into %s (%s) values (%s)' % (table, fields, values)
+      db.execute(stmt)
 
-  db.commit()
+    db.commit()
 
-def orm(db, table, cursor, clazz=Pormo, fkeylookup=True):
-  """
+  def orm(self, db, table, cursor, clazz=Pormo, fkeylookup=True):
+    """
 Retrieves the rows from the given sqlite3 cursor and attempts to convert 
 them into representative python objects. Any field which is a foreign key
 to another table triggers a lookup; that field in the python object is set
@@ -139,33 +143,33 @@ clazz      - class of object to return - if not provided, defaults to
              porm.Pormo
 fkeylookup - optional, defaults to True; if false, foreign key lookups are 
              not executed
-  """
-  
-  objs     = []
-  rows     = cursor.fetchall()
-  rownames = [d[0] for d in cursor.description]
+    """
+    
+    objs     = []
+    rows     = cursor.fetchall()
+    rownames = [d[0] for d in cursor.description]
 
-  for row in rows:
+    for row in rows:
 
-    obj = clazz()
-    for i in range(len(rownames)):
+      obj = clazz()
+      for i in range(len(rownames)):
 
-      name = rownames[i]
-      val  = row[i]
-      
-      # foreign key lookup
-      if fkeylookup and len(name) > 3 and name[-3:] == '_id':
+        name = rownames[i]
+        val  = row[i]
+        
+        # foreign key lookup
+        if fkeylookup and len(name) > 3 and name[-3:] == '_id':
 
-        val  = query(db, name[:-3], 'id = %i' % val)
+          val = self.query(db, name[:-3], 'id = %i' % val)
 
-        if len(val) >= 1: setattr(obj, name, val[0])
-        else:             setattr(obj, name, None)
+          if len(val) >= 1: setattr(obj, name, val[0])
+          else:             setattr(obj, name, None)
 
-      # simple type
-      else:
-        setattr(obj, name, val)
+        # simple type
+        else:
+          setattr(obj, name, val)
 
-    objs.append(obj)
+      objs.append(obj)
 
-  return objs
+    return objs
 
