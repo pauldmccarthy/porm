@@ -30,25 +30,11 @@
 
 class Pormo:
   """
-Base ORM object; all returned objects are of this type, and all objects 
-passed to the save function are assumed to be of this type. If not, 
-unexpected things may result.
+Base ORM object; used if the user does not provide a desired class type.
   """
+  pass
 
-  def __init__(self, obj=None):
-    """
-If an object is passed in, the fields from that object are copied into this
-object.
-    """
-
-    self.id = 0
-
-    if obj is not None:
-      for f in dir(obj):
-        if f.startswith('__'): continue
-        setattr(self, f, getattr(obj, f))
-
-def query(db, table, where='', fkeylookup=True):
+def query(db, table, where='', clazz=Pormo, fkeylookup=True):
   """
 Queries the given table in the given database according to the given where 
 clause. Returns a list of objects representing the rows returned from the 
@@ -57,6 +43,8 @@ query.
 db         - a handle to an open sqlite3 Connection object
 table      - the name of the table to query
 where      - the optional sql where clause
+clazz      - class of object to return - if not provided, defaults to 
+             porm.Pormo
 fkeylookup - optional, defaults to True; if false, foreign key lookups are
              not executed
 
@@ -72,7 +60,7 @@ you would do this:
   query = 'select * from %s %s' % (table, where)
 
   cursor = db.execute(query)
-  return orm(db, table, cursor, fkeylookup)
+  return orm(db, table, cursor, clazz, fkeylookup)
 
 def save(db, table, instance):
   """
@@ -104,7 +92,7 @@ instance - the instance to save
 
   # replace any foreign key objects with their ids
   for i in range(len(values)):
-    if isinstance(values[i], Pormo):
+    if fields[i].endswith('_id') and type(values[i]) != type(1):
       values[i] = values[i].id
 
   # update existing instance
@@ -125,7 +113,7 @@ instance - the instance to save
 
   db.commit()
 
-def orm(db, table, cursor, fkeylookup=True):
+def orm(db, table, cursor, clazz=Pormo, fkeylookup=True):
   """
 Retrieves the rows from the given sqlite3 cursor and attempts to convert 
 them into representative python objects. Any field which is a foreign key
@@ -147,6 +135,8 @@ circular foreign key relationship will cause infinite recursion.
 db         - handle to an open sqlite3 Connection object
 table      - name of the table in question
 cursor     - handle to a valid sqlite3 Cursor object
+clazz      - class of object to return - if not provided, defaults to 
+             porm.Pormo
 fkeylookup - optional, defaults to True; if false, foreign key lookups are 
              not executed
   """
@@ -157,7 +147,7 @@ fkeylookup - optional, defaults to True; if false, foreign key lookups are
 
   for row in rows:
 
-    obj = Pormo()
+    obj = clazz()
     for i in range(len(rownames)):
 
       name = rownames[i]
